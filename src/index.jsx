@@ -53,6 +53,7 @@ const formatTimestamp = (value) => {
 
 const PELLET_COUNT = 8;
 const PELLET_SWEEP_MS = 1300;
+const DUPLICATE_NAME_ERROR = "That participant name has already been used.";
 
 const App = () => {
 	const [survey, setSurvey] = useState(null);
@@ -195,6 +196,10 @@ const App = () => {
 			setParticipant("");
 			setMessage("Vote recorded.");
 		} catch (requestError) {
+			if (requestError.message === DUPLICATE_NAME_ERROR) {
+				const suffix = Math.floor(100 + Math.random() * 900);
+				setParticipant(`${participant.trim()}-${suffix}`);
+			}
 			setError(requestError.message);
 		} finally {
 			setLoadingVote(false);
@@ -340,6 +345,9 @@ const App = () => {
 					</div>
 
 					<form className="stack" onSubmit={submitVote}>
+						<p className="notice">
+							One response is allowed per connection.
+						</p>
 						<label className="field">
 							<span>Participant</span>
 							<input

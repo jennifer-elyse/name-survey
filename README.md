@@ -52,6 +52,8 @@ Then open `http://localhost:8787`.
 - `ALLOWED_ORIGINS` – comma-separated frontend origins allowed to call the API in dev, default `http://127.0.0.1:1234,http://localhost:1234`
 - `SESSION_SECRET` – used to sign the session cookie
 - `TRUST_PROXY` – set to `true` when deployed behind a reverse proxy or load balancer
+- `NETLIFY_BLOBS_SITE_ID` – optional manual Netlify Blobs site/project ID override
+- `NETLIFY_BLOBS_TOKEN` – optional manual Netlify Blobs token override
 
 ## Behavior notes
 
@@ -92,7 +94,9 @@ If you deploy behind a proxy, set `TRUST_PROXY=true` so Express uses forwarded I
 
 This repo is now wired so Netlify can serve the frontend from `dist` and route `/api/*` requests to an Express-based Netlify Function.
 
-One important caveat: this app currently stores survey data in `data/survey-state.json`. That works locally, but on Netlify Functions you should treat filesystem-backed state as non-durable. For a real Netlify deployment, move survey state to persistent storage such as Netlify DB, Blobs, or another external datastore.
+Survey state is stored in `data/survey-state.json` for local development.
+On Netlify, the app tries Netlify Blobs first and falls back to in-memory runtime state if Blobs is unavailable.
+The in-memory fallback keeps the site working, but state can reset whenever the function instance is recycled.
 
 ## Privacy note
 

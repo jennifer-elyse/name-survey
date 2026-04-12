@@ -83,6 +83,11 @@
   resolved "https://registry.yarnpkg.com/@msgpackr-extract/msgpackr-extract-win32-x64/-/msgpackr-extract-win32-x64-3.0.3.tgz#0aa5502d547b57abfc4ac492de68e2006e417242"
   integrity sha512-x0fWaQtYp4E6sktbsdAqnehxDgEc/VwM7uLsRCYWaiGu0ykYdZPiS8zCWdnjHwyiumousxfBm4SO31eXqwEZhQ==
 
+"@netlify/blobs@^8.1.0":
+  version "8.2.0"
+  resolved "https://registry.yarnpkg.com/@netlify/blobs/-/blobs-8.2.0.tgz#4cd6c82cbe7edff8476f67b4d390b08a97f8b210"
+  integrity sha512-9djLZHBKsoKk8XCgwWSEPK9QnT8qqxEQGuYh48gFIcNLvpBKkLnHbDZuyUxmNemCfDz7h0HnMXgSPnnUVgARhg==
+
 "@parcel/bundler-default@2.16.4":
   version "2.16.4"
   resolved "https://registry.yarnpkg.com/@parcel/bundler-default/-/bundler-default-2.16.4.tgz#e4a273ef224b974eab3981a94873f760ef35184b"
@@ -1798,6 +1803,11 @@ serve-static@~1.16.2:
     escape-html "~1.0.3"
     parseurl "~1.3.3"
     send "~0.19.1"
+
+serverless-http@^3.2.0:
+  version "3.2.0"
+  resolved "https://registry.yarnpkg.com/serverless-http/-/serverless-http-3.2.0.tgz#68acc7735f7c876733c04f038ee20f31f5ebfc9b"
+  integrity sha512-QvSyZXljRLIGqwcJ4xsKJXwkZnAVkse1OajepxfjkBXV0BMvRS5R546Z4kCBI8IygDzkQY0foNPC/rnipaE9pQ==
 
 setprototypeof@1.2.0, setprototypeof@~1.2.0:
   version "1.2.0"
