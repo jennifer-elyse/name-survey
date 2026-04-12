@@ -390,6 +390,9 @@ app.post("/api/vote", async (req, res) => {
 
 	const normalizedParticipant = normalizeParticipant(participant);
 	const ip = getRequesterIp(req);
+	const hasSubmittedThisRound =
+		Boolean(req.session?.hasVoted) &&
+		req.session?.voteStateCreatedAt === state.createdAt;
 
 	if (state.participantLookup[normalizedParticipant]) {
 		return res
@@ -397,7 +400,7 @@ app.post("/api/vote", async (req, res) => {
 			.json({ error: "That participant name has already been used." });
 	}
 
-	if (state.voterRecords.some((record) => record.ip === ip)) {
+	if (hasSubmittedThisRound) {
 		return res.status(409).json({
 			error: "Only one response is allowed from the same connection.",
 		});
@@ -426,6 +429,8 @@ app.post("/api/vote", async (req, res) => {
 		ip,
 		votedAt,
 	};
+	req.session.hasVoted = true;
+	req.session.voteStateCreatedAt = state.createdAt;
 
 	await saveState(state);
 	res.json(buildPublicState(state, Boolean(req.session?.isAdmin)));
