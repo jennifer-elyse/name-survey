@@ -1,6 +1,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 const { getStore } = require("@netlify/blobs");
+const { createClient } = require("@supabase/supabase-js");
 const bcrypt = require("bcryptjs");
 const express = require("express");
 const session = require("express-session");
@@ -25,6 +26,11 @@ const NETLIFY_BLOBS_SITE_ID =
 	process.env.NETLIFY_BLOBS_SITE_ID || process.env.NETLIFY_SITE_ID || "";
 const NETLIFY_BLOBS_TOKEN =
 	process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_AUTH_TOKEN || "";
+const SUPABASE_URL = process.env.SUPABASE_URL || "";
+const SUPABASE_SERVICE_ROLE_KEY =
+	process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+const SUPABASE_STATE_TABLE =
+	process.env.SUPABASE_STATE_TABLE || "survey_state";
 
 const DIST_DIR = path.join(__dirname, "dist");
 const DATA_DIR = path.join(__dirname, "data");
@@ -112,6 +118,17 @@ const createInitialState = () => ({
 	participantLookup: {},
 });
 
+const supabase =
+	SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY
+		? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+				auth: {
+					autoRefreshToken: false,
+					persistSession: false,
+					detectSessionInUrl: false,
+				},
+			})
+		: null;
+
 let surveyStateStore = null;
 let blobsAvailable = false;
 
@@ -134,6 +151,37 @@ if (IS_NETLIFY) {
 }
 
 const loadState = async () => {
+	if (supabase) {
+		const { data, error } = await supabase
+			.from(SUPABASE_STATE_TABLE)
+			.select("state")
+			.eq("key", SURVEY_STATE_KEY)
+			maybeSingle();
+
+		if (error) {
+			throw error;
+		}
+
+		if (data?.state) {
+			return data.state;
+		}
+
+		const initialState = createInitialState();
+		const { error: upsertError } = await supabase
+			.from(SUPABASE_STATE_TABLE)
+			.upsert({
+				key: SURVEY_STATE_KEY,
+				state: initialState,
+				updated_at: initialState.updatedAt,
+			});
+
+		if (upsertError) {
+			throw upsertError;
+		}
+
+		return initialState;
+	}
+
 	if (surveyStateStore && blobsAvailable) {
 		const existingState = await surveyStateStore.get(SURVEY_STATE_KEY, {
 			type: "json",
@@ -175,6 +223,20 @@ const loadState = async () => {
 
 const saveState = async (state) => {
 	state.updatedAt = nowIso();
+
+	if (supabase) {
+		const { error } = await supabase.from(SUPABASE_STATE_TABLE).upsert({
+			key: SURVEY_STATE_KEY,
+			state,
+			updated_at: state.updatedAt,
+		});
+
+		if (error) {
+			throw error;
+		}
+
+		return;
+	}
 
 	if (surveyStateStore && blobsAvailable) {
 		await surveyStateStore.setJSON(SURVEY_STATE_KEY, state);

@@ -54,6 +54,9 @@ Then open `http://localhost:8787`.
 - `TRUST_PROXY` – set to `true` when deployed behind a reverse proxy or load balancer
 - `NETLIFY_BLOBS_SITE_ID` – optional manual Netlify Blobs site/project ID override
 - `NETLIFY_BLOBS_TOKEN` – optional manual Netlify Blobs token override
+- `SUPABASE_URL` – optional Supabase project URL for persistent hosted storage
+- `SUPABASE_SERVICE_ROLE_KEY` – optional Supabase service role key for server-side persistence
+- `SUPABASE_STATE_TABLE` – optional Supabase table name, default `survey_state`
 
 ## Behavior notes
 
@@ -95,8 +98,21 @@ If you deploy behind a proxy, set `TRUST_PROXY=true` so Express uses forwarded I
 This repo is now wired so Netlify can serve the frontend from `dist` and route `/api/*` requests to an Express-based Netlify Function.
 
 Survey state is stored in `data/survey-state.json` for local development.
-On Netlify, the app tries Netlify Blobs first and falls back to in-memory runtime state if Blobs is unavailable.
+If `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set, Supabase is used as the primary persistent store.
+Otherwise, on Netlify, the app tries Netlify Blobs and falls back to in-memory runtime state if Blobs is unavailable.
 The in-memory fallback keeps the site working, but state can reset whenever the function instance is recycled.
+
+## Supabase table
+
+Create a table like this before enabling the Supabase env vars:
+
+```sql
+create table if not exists public.survey_state (
+  key text primary key,
+  state jsonb not null,
+  updated_at timestamptz not null default now()
+);
+```
 
 ## Privacy note
 
