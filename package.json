@@ -1,0 +1,36 @@
+{
+  "name": "name-survey",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Parcel + React 19 naming survey with persisted server-side state, hashed admin auth, and Pac-Man finale.",
+  "type": "module",
+  "source": "src/index.html",
+  "targets": {
+    "default": {
+      "distDir": "dist",
+      "publicUrl": "./"
+    }
+  },
+  "scripts": {
+    "dev": "concurrently -k \"yarn dev:server\" \"yarn dev:client\"",
+    "dev:client": "parcel serve --host 127.0.0.1 --port 1234",
+    "dev:server": "node server.js",
+    "build": "parcel build",
+    "start": "node server.js",
+    "serve": "yarn start"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "express-session": "^1.18.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "serverless-http": "^3.2.0"
+  },
+  "devDependencies": {
+    "@parcel/transformer-sass": "2.16.4",
+    "concurrently": "^9.1.2",
+    "parcel": "^2.14.0"
+  }
+}
