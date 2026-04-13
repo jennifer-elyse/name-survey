@@ -99,8 +99,9 @@ This repo is now wired so Netlify can serve the frontend from `dist` and route `
 
 Survey state is stored in `data/survey-state.json` for local development.
 If `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set, Supabase is used as the primary persistent store.
-Otherwise, on Netlify, the app tries Netlify Blobs and falls back to in-memory runtime state if Blobs is unavailable.
-The in-memory fallback keeps the site working, but state can reset whenever the function instance is recycled.
+Otherwise, on Netlify, the app tries Netlify Blobs.
+If neither Supabase nor Netlify Blobs is available, the API now returns a clear configuration error instead of silently falling back to in-memory runtime state.
+That prevents Netlify function restarts from appearing to "clear" saved survey data.
 
 ## Supabase table
 

@@ -58,14 +58,14 @@ const DUPLICATE_NAME_ERROR = "That participant name has already been used.";
 const App = () => {
 	const [survey, setSurvey] = useState(null);
 	const [participant, setParticipant] = useState("");
-	const [selectedOption, setSelectedOption] = useState(0);
+	const [selectedOption, setSelectedOption] = useState(null);
 	const [password, setPassword] = useState("");
 	const [message, setMessage] = useState("");
 	const [error, setError] = useState("");
 	const [loadingVote, setLoadingVote] = useState(false);
 	const [loadingAdmin, setLoadingAdmin] = useState(false);
 	const [animation, setAnimation] = useState(defaultAnimation);
-	const previousEndedRef = useRef(false);
+	const previousFinaleKeyRef = useRef("");
 
 	const loadSurvey = async ({ silent = false } = {}) => {
 		try {
@@ -90,6 +90,18 @@ const App = () => {
 		return () => window.clearInterval(timer);
 	}, []);
 
+	useEffect(() => {
+		if (!survey || selectedOption === null) return;
+
+		const selectedStillExists = survey.options.some(
+			(option) => option.id === selectedOption,
+		);
+
+		if (!selectedStillExists) {
+			setSelectedOption(null);
+		}
+	}, [survey, selectedOption]);
+
 	const ranked = useMemo(() => survey?.rankedOptions || [], [survey]);
 	const finaleOrder = useMemo(() => ranked.slice(1, 5).reverse(), [ranked]);
 	const finaleRanks = useMemo(
@@ -101,19 +113,24 @@ const App = () => {
 		...(survey?.options || []).map((option) => option.votes),
 		1,
 	);
+	const showPublicFinale = survey?.surveyEnded && !survey?.isAdmin;
 
 	useEffect(() => {
 		if (!survey) return;
 
 		if (!survey.surveyEnded) {
-			previousEndedRef.current = false;
+			previousFinaleKeyRef.current = "";
 			setAnimation(defaultAnimation());
 			return;
 		}
 
-		if (previousEndedRef.current) return;
+		const finaleAudience = survey.isAdmin ? "admin" : "public";
+		const finaleKey = `${survey.createdAt}:${finaleAudience}`;
 
-		previousEndedRef.current = true;
+		if (previousFinaleKeyRef.current === finaleKey) return;
+
+		previousFinaleKeyRef.current = finaleKey;
+		setAnimation(defaultAnimation());
 
 		const runAnimation = async () => {
 			setAnimation((current) => ({
@@ -179,6 +196,11 @@ const App = () => {
 			return;
 		}
 
+		if (selectedOption === null) {
+			setError("Please select an option before submitting.");
+			return;
+		}
+
 		setLoadingVote(true);
 		setError("");
 		setMessage("");
@@ -194,6 +216,7 @@ const App = () => {
 
 			setSurvey(nextSurvey);
 			setParticipant("");
+			setSelectedOption(null);
 			setMessage("Vote recorded.");
 		} catch (requestError) {
 			if (requestError.message === DUPLICATE_NAME_ERROR) {
@@ -274,7 +297,7 @@ const App = () => {
 			const nextSurvey = await api("/api/admin/reset", {
 				method: "POST",
 			});
-			previousEndedRef.current = false;
+			previousFinaleKeyRef.current = "";
 			setAnimation(defaultAnimation());
 			setSurvey(nextSurvey);
 			setMessage("Survey cleared.");
@@ -299,6 +322,115 @@ const App = () => {
 						<p>Loading survey…</p>
 					</div>
 				)}
+			</main>
+		);
+	}
+
+	const rankingMarkup = (
+		<div className="ranking">
+			{ranked.map((option, index) => {
+				const width = `${Math.max((option.votes / maxVotes) * 100, option.votes ? 8 : 0)}%`;
+				const consumed = animation.consumedIds.includes(option.id);
+
+				return (
+					<div
+						className={`rank-row ${index === 0 ? "winner" : ""} ${consumed ? "consumed" : ""}`}
+						key={option.id}
+					>
+						<div className="rank-row-top">
+							<span className="rank-index">#{index + 1}</span>
+							<span className="rank-name">{option.name}</span>
+							<span className="rank-votes">{option.votes}</span>
+						</div>
+						<div className="rank-bar-shell">
+							<div className="rank-bar-fill" style={{ width }} />
+						</div>
+					</div>
+				);
+			})}
+		</div>
+	);
+
+	const arcadeMarkup = (
+		<div
+			className={[
+				"arcade-stage",
+				showPublicFinale ? "public-arcade-stage" : "",
+			].join(" ")}
+		>
+			<div className="ghost-row">
+				{finaleOrder.map((option, index) => (
+					<div className="ghost-lane" key={option.id}>
+						<div
+							className={[
+								"ghost",
+								`ghost-${GHOSTS[index]?.key || "k"}`,
+								animation.activeGhostIndex === index
+									? "active"
+									: "",
+								animation.ghostsGone ? "gone" : "",
+							].join(" ")}
+						>
+							<span className="eye left" />
+							<span className="eye right" />
+							<span className="feet">
+								<i />
+								<i />
+								<i />
+								<i />
+							</span>
+						</div>
+						<span className="ghost-tag">{`#${finaleRanks.get(option.id)}`}</span>
+					</div>
+				))}
+			</div>
+
+			<div className="pellet-lane" aria-hidden="true">
+				{Array.from({ length: PELLET_COUNT }).map((_, index) => (
+					<span
+						className={`pellet ${index < animation.pelletsEaten ? "eaten" : ""}`}
+						key={index}
+					/>
+				))}
+			</div>
+
+			<div
+				className={[
+					"pacman",
+					showPublicFinale ? "finale-top" : "",
+					animation.pacmanBig ? "big" : "",
+					animation.pacmanSweep ? "sweep" : "",
+				].join(" ")}
+				aria-hidden="true"
+			/>
+		</div>
+	);
+
+	if (showPublicFinale) {
+		return (
+			<main className="page page-finale">
+				<div className="grid-noise" />
+				<section
+					className={[
+						"panel",
+						"public-finale",
+						animation.started ? "started" : "",
+						animation.ghostsGone ? "revealed" : "",
+					].join(" ")}
+				>
+					<div className="public-finale-top">{arcadeMarkup}</div>
+					<div className="public-finale-list">
+						<div className="section-head">
+							<h2>Final results</h2>
+							<span className="leader">
+								{leader
+									? `${leader.name} wins with ${leader.votes}`
+									: "No votes yet"}
+							</span>
+						</div>
+						{rankingMarkup}
+					</div>
+				</section>
 			</main>
 		);
 	}
@@ -385,7 +517,11 @@ const App = () => {
 
 						<button
 							className="btn btn-primary"
-							disabled={survey.surveyEnded || loadingVote}
+							disabled={
+								survey.surveyEnded ||
+								loadingVote ||
+								selectedOption === null
+							}
 						>
 							{loadingVote ? "Submitting…" : "Submit vote"}
 						</button>
@@ -487,96 +623,9 @@ const App = () => {
 						</p>
 					) : null}
 
-					<div className="ranking">
-						{ranked.map((option, index) => {
-							const width = `${Math.max((option.votes / maxVotes) * 100, option.votes ? 8 : 0)}%`;
-							const consumed = animation.consumedIds.includes(
-								option.id,
-							);
+					{rankingMarkup}
 
-							return (
-								<div
-									className={`rank-row ${index === 0 ? "winner" : ""} ${consumed ? "consumed" : ""}`}
-									key={option.id}
-								>
-									<div className="rank-row-top">
-										<span className="rank-index">
-											#{index + 1}
-										</span>
-										<span className="rank-name">
-											{option.name}
-										</span>
-										<span className="rank-votes">
-											{option.votes}
-										</span>
-									</div>
-									<div className="rank-bar-shell">
-										<div
-											className="rank-bar-fill"
-											style={{ width }}
-										/>
-									</div>
-								</div>
-							);
-						})}
-					</div>
-
-					{survey.surveyEnded ? (
-						<div className="arcade-stage">
-							<div className="ghost-row">
-								{finaleOrder.map((option, index) => (
-									<div className="ghost-lane" key={option.id}>
-										<div
-											className={[
-												"ghost",
-												`ghost-${GHOSTS[index]?.key || "k"}`,
-												animation.activeGhostIndex ===
-												index
-													? "active"
-													: "",
-												animation.ghostsGone
-													? "gone"
-													: "",
-											].join(" ")}
-										>
-											<span className="eye left" />
-											<span className="eye right" />
-											<span className="feet">
-												<i />
-												<i />
-												<i />
-												<i />
-											</span>
-										</div>
-										<span className="ghost-tag">{`#${finaleRanks.get(option.id)}`}</span>
-									</div>
-								))}
-							</div>
-
-							<div className="pellet-lane" aria-hidden="true">
-								{Array.from({ length: PELLET_COUNT }).map(
-									(_, index) => (
-										<span
-											className={`pellet ${index < animation.pelletsEaten ? "eaten" : ""}`}
-											key={index}
-										/>
-									),
-								)}
-							</div>
-
-							<div
-								className={[
-									"pacman",
-									animation.pacmanBig ? "big" : "",
-									animation.pacmanSweep ? "sweep" : "",
-								].join(" ")}
-								aria-hidden="true"
-							>
-								<span className="pacman-eye" />
-								<span className="pacman-mouth" />
-							</div>
-						</div>
-					) : null}
+					{survey.surveyEnded ? arcadeMarkup : null}
 				</section>
 
 				<section className="panel ips-panel">

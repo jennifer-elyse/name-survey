@@ -3,6 +3,7 @@ const path = require("node:path");
 const { getStore } = require("@netlify/blobs");
 const { createClient } = require("@supabase/supabase-js");
 const bcrypt = require("bcryptjs");
+const { DEFAULT_OPTIONS } = require("./config.cjs");
 const express = require("express");
 const session = require("express-session");
 const dotenv = require("dotenv");
@@ -39,19 +40,12 @@ const SURVEY_STATE_KEY = "survey-state";
 const IS_NETLIFY =
 	process.env.NETLIFY === "true" ||
 	Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
-const MEMORY_STATE_KEY = "__nameSurveyState";
-
-const DEFAULT_OPTIONS = [
-	"Pulse Cannon",
-	"Signal Forge",
-	"Event Current",
-	"Sync Reactor",
-	"Nexus Pulse",
-];
 
 const ADMIN_WINDOW_MS = 15 * 60 * 1000;
 const ADMIN_MAX_ATTEMPTS = 8;
 const adminAttemptStore = new Map();
+const NETLIFY_PERSISTENCE_ERROR =
+	"Persistent survey storage is not configured for Netlify. Configure Supabase or Netlify Blobs before using this deployment.";
 const ADMIN_PASSWORD = "U0GhUMMIeEBDSpS5nzVDBJa9qdkZCMz-";
 const ADMIN_PASSWORD_HASH = bcrypt.hashSync(
 	ADMIN_PASSWORD,
@@ -103,6 +97,8 @@ const ensureDataDir = () => {
 };
 
 const nowIso = () => new Date().toISOString();
+const asyncRoute = (handler) => (req, res, next) =>
+	Promise.resolve(handler(req, res, next)).catch(next);
 
 const createInitialState = () => ({
 	createdAt: nowIso(),
@@ -154,9 +150,9 @@ const loadState = async () => {
 	if (supabase) {
 		const { data, error } = await supabase
 			.from(SUPABASE_STATE_TABLE)
-			.select("state")
+			.select("key, state")
 			.eq("key", SURVEY_STATE_KEY)
-			maybeSingle();
+			.maybeSingle();
 
 		if (error) {
 			throw error;
@@ -166,6 +162,8 @@ const loadState = async () => {
 			return data.state;
 		}
 
+		// Only seed the table when the survey state row does not exist yet.
+		// Existing Supabase survey data should only be replaced via admin reset.
 		const initialState = createInitialState();
 		const { error: upsertError } = await supabase
 			.from(SUPABASE_STATE_TABLE)
@@ -197,11 +195,7 @@ const loadState = async () => {
 	}
 
 	if (IS_NETLIFY) {
-		if (!globalThis[MEMORY_STATE_KEY]) {
-			globalThis[MEMORY_STATE_KEY] = createInitialState();
-		}
-
-		return globalThis[MEMORY_STATE_KEY];
+		throw new Error(NETLIFY_PERSISTENCE_ERROR);
 	}
 
 	ensureDataDir();
@@ -244,8 +238,7 @@ const saveState = async (state) => {
 	}
 
 	if (IS_NETLIFY) {
-		globalThis[MEMORY_STATE_KEY] = state;
-		return;
+		throw new Error(NETLIFY_PERSISTENCE_ERROR);
 	}
 
 	fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
@@ -424,12 +417,12 @@ const verifyPassword = async (password) => {
 	return bcrypt.compare(password, ADMIN_PASSWORD_HASH);
 };
 
-app.get("/api/survey", async (req, res) => {
+app.get("/api/survey", asyncRoute(async (req, res) => {
 	const state = await loadState();
 	res.json(buildPublicState(state, Boolean(req.session?.isAdmin)));
-});
+}));
 
-app.post("/api/vote", async (req, res) => {
+app.post("/api/vote", asyncRoute(async (req, res) => {
 	const state = await loadState();
 
 	if (state.surveyEnded) {
@@ -496,9 +489,9 @@ app.post("/api/vote", async (req, res) => {
 
 	await saveState(state);
 	res.json(buildPublicState(state, Boolean(req.session?.isAdmin)));
-});
+}));
 
-app.post("/api/admin/login", async (req, res) => {
+app.post("/api/admin/login", asyncRoute(async (req, res) => {
 	if (!ensurePasswordConfigured(res)) {
 		return;
 	}
@@ -521,7 +514,7 @@ app.post("/api/admin/login", async (req, res) => {
 	clearFailures("login", ip);
 	req.session.isAdmin = true;
 	res.json({ ok: true });
-});
+}));
 
 app.post("/api/admin/logout", (req, res) => {
 	req.session.destroy(() => {
@@ -529,7 +522,7 @@ app.post("/api/admin/logout", (req, res) => {
 	});
 });
 
-app.post("/api/admin/end", requireAdmin, async (req, res) => {
+app.post("/api/admin/end", requireAdmin, asyncRoute(async (req, res) => {
 	const state = await loadState();
 
 	if (!state.surveyEnded) {
@@ -538,9 +531,9 @@ app.post("/api/admin/end", requireAdmin, async (req, res) => {
 	}
 
 	res.json(buildPublicState(state, true));
-});
+}));
 
-app.post("/api/admin/reset", requireAdmin, async (req, res) => {
+app.post("/api/admin/reset", requireAdmin, asyncRoute(async (req, res) => {
 	if (!ensurePasswordConfigured(res)) {
 		return;
 	}
@@ -556,6 +549,22 @@ app.post("/api/admin/reset", requireAdmin, async (req, res) => {
 	const nextState = createInitialState();
 	await saveState(nextState);
 	res.json(buildPublicState(nextState, true));
+}));
+
+app.use((error, req, res, next) => {
+	if (res.headersSent) {
+		return next(error);
+	}
+
+	if (req.path.startsWith("/api/")) {
+		return res.status(500).json({
+			error:
+				error?.message ||
+				"Something went wrong while processing the survey request.",
+		});
+	}
+
+	return next(error);
 });
 
 app.use(express.static(DIST_DIR));
