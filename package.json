@@ -13,9 +13,9 @@
   },
   "scripts": {
     "dev": "concurrently -k \"yarn dev:server\" \"yarn dev:client\"",
-    "dev:client": "parcel serve --host 127.0.0.1 --port 1234",
+    "dev:client": "PORT=1234 parcel serve --host 127.0.0.1 --port 1234",
     "dev:server": "node server.js",
-    "build": "parcel build",
+    "build": "rm -rf .parcel-cache dist && parcel build",
     "start": "node server.js",
     "serve": "yarn start"
   },
@@ -32,6 +32,7 @@
   },
   "devDependencies": {
     "@parcel/transformer-sass": "2.16.4",
+    "buffer": "^5.5.0||^6.0.0",
     "concurrently": "^9.1.2",
     "parcel": "^2.14.0"
   }

@@ -57,6 +57,10 @@ Then open `http://localhost:8787`.
 - `SUPABASE_URL` – optional Supabase project URL for persistent hosted storage
 - `SUPABASE_SERVICE_ROLE_KEY` – optional Supabase service role key for server-side persistence
 - `SUPABASE_STATE_TABLE` – optional Supabase table name, default `survey_state`
+- `PARCEL_PUBLIC_SUPABASE_URL` – optional public Supabase project URL for browser realtime subscriptions
+- `PARCEL_PUBLIC_SUPABASE_ANON_KEY` – optional public Supabase anon/publishable key for browser realtime subscriptions
+- `PARCEL_PUBLIC_SUPABASE_REALTIME_TOPIC` – optional browser realtime topic name, default `survey-state`
+- `SUPABASE_REALTIME_TOPIC` – optional server broadcast topic name, default `survey-state`
 
 ## Behavior notes
 
@@ -102,6 +106,8 @@ If `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set, Supabase is used as t
 Otherwise, on Netlify, the app tries Netlify Blobs.
 If neither Supabase nor Netlify Blobs is available, the API now returns a clear configuration error instead of silently falling back to in-memory runtime state.
 That prevents Netlify function restarts from appearing to "clear" saved survey data.
+
+If `PARCEL_PUBLIC_SUPABASE_URL` and `PARCEL_PUBLIC_SUPABASE_ANON_KEY` are also set, the frontend subscribes to Supabase Realtime broadcast messages and refreshes on writes instead of relying on the 2-second polling loop. This uses lightweight broadcast notifications, not direct database row subscriptions, so the private survey state JSON does not need to be exposed to the browser.
 
 ## Supabase table
 

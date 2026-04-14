@@ -32,6 +32,8 @@ const SUPABASE_SERVICE_ROLE_KEY =
 	process.env.SUPABASE_SERVICE_ROLE_KEY || "";
 const SUPABASE_STATE_TABLE =
 	process.env.SUPABASE_STATE_TABLE || "survey_state";
+const SUPABASE_REALTIME_TOPIC =
+	process.env.SUPABASE_REALTIME_TOPIC || "survey-state";
 
 const DIST_DIR = path.join(__dirname, "dist");
 const DATA_DIR = path.join(__dirname, "data");
@@ -229,6 +231,8 @@ const saveState = async (state) => {
 			throw error;
 		}
 
+		await broadcastSurveyUpdate(state);
+
 		return;
 	}
 
@@ -242,6 +246,37 @@ const saveState = async (state) => {
 	}
 
 	fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
+};
+
+const broadcastSurveyUpdate = async (state) => {
+	if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return;
+
+	try {
+		const realtimeUrl = new URL("/realtime/v1/api/broadcast", SUPABASE_URL);
+		await fetch(realtimeUrl, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				apikey: SUPABASE_SERVICE_ROLE_KEY,
+				Authorization: `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+			},
+			body: JSON.stringify({
+				messages: [
+					{
+						topic: SUPABASE_REALTIME_TOPIC,
+						event: "state-changed",
+						payload: {
+							createdAt: state.createdAt,
+							updatedAt: state.updatedAt,
+							surveyEnded: state.surveyEnded,
+						},
+					},
+				],
+			}),
+		});
+	} catch (error) {
+		console.error("Supabase realtime broadcast failed.", error);
+	}
 };
 
 const normalizeParticipant = (value = "") => value.trim().toLowerCase();
